@@ -2,3 +2,5 @@ fastapi
 uvicorn
 pillow
 ultralytics
+requests
+gradio
