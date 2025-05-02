@@ -1,4 +1,5 @@
 fastapi
+gunicorn
 uvicorn
 pillow
 ultralytics
