@@ -1,21 +1,16 @@
-# Use an official Python runtime as a parent image
-FROM python:3.9
+FROM python:3.12-slim
 
-# Set the working directory in the container
+# Install OpenCV dependencies
+RUN apt-get update && apt-get install -y libgl1 libglib2.0-0
+
+# Set working directory
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Copy files
+COPY . .
 
-# Install any needed packages specified in requirements.txt
+# Install Python packages
 RUN pip install --no-cache-dir -r requirements.txt
-RUN apt-get update && apt-get install -y libgl1-mesa-glx
-RUN nix-env -iA nixpkgs.libGL
 
-
-
-# Expose port 8000
-EXPOSE 8000
-
-# Run Gunicorn with Uvicorn worker on container startup
-CMD ["gunicorn", "main:app", "-k", "uvicorn.workers.UvicornWorker", "--bind", "0.0.0.0:8000"]
+# Run the app
+CMD ["python", "main.py"]
