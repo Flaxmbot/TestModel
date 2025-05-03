@@ -4,5 +4,5 @@ uvicorn
 pillow
 ultralytics
 requests
-opencv-python
+opencv-python-headless
 gradio
