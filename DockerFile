@@ -1,7 +1,6 @@
-# -------- Base image with Python and Node --------
+# -------- Base image with Node.js --------
     FROM node:18-bullseye-slim AS base
 
-    # Set working directory
     WORKDIR /app
     
     # -------- Backend Dependencies --------
@@ -9,14 +8,17 @@
     
     WORKDIR /app
     
-    # Install OpenCV dependencies
+    # Install OpenCV + rendering dependencies
     RUN apt-get update && apt-get install -y \
         libgl1-mesa-glx \
         libglib2.0-0 \
+        libsm6 \
+        libxrender1 \
+        libxext6 \
         ffmpeg \
-        && rm -rf /var/lib/apt/lists/*
+      && rm -rf /var/lib/apt/lists/*
     
-    # Install Python dependencies
+    # Copy & install Python deps
     COPY requirements.txt .
     RUN pip install --no-cache-dir -r requirements.txt
     
@@ -28,7 +30,7 @@
     COPY frontend/package*.json ./
     RUN npm install
     
-    COPY frontend ./
+    COPY frontend/ ./
     RUN npm run build
     
     # -------- Final Image Combining Both --------
@@ -36,17 +38,16 @@
     
     WORKDIR /app
     
-    # Copy backend code
-    COPY . .
+    # Copy backend code + model
+    COPY main.py best.pt requirements.txt ./
+    COPY frontend ./frontend
     
-    # Copy built frontend
+    # Copy built frontend artifacts
     COPY --from=frontend /app/frontend/.next ./frontend/.next
     COPY --from=frontend /app/frontend/public ./frontend/public
     COPY --from=frontend /app/frontend/node_modules ./frontend/node_modules
     
-    # Expose FastAPI backend on port 8000
+    # Expose port and start FastAPI
     EXPOSE 8000
-    
-    # Run the FastAPI app
     CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     
