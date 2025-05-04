@@ -12,14 +12,15 @@ app = FastAPI()
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # adjust for production
+    allow_origins=["http://localhost:3000"],  # adjust for your frontend origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Load your YOLO model (Ensure the path is correct)
-model = YOLO("best.pt")  # Make sure this is the correct path to your weights
+# Load your YOLO model
+model = YOLO("last.pt")  # Make sure 'last.pt' is in the correct path
+class_names = model.names  # Get class names from model
 
 @app.post("/predict")
 async def predict(image: UploadFile = File(...)):
@@ -27,26 +28,24 @@ async def predict(image: UploadFile = File(...)):
         raise HTTPException(400, "File must be an image")
 
     try:
-        # Read image into PIL
+        # Read and convert image to PIL format
         contents = await image.read()
         pil_img = Image.open(io.BytesIO(contents)).convert("RGB")
 
-        # Run YOLO
+        # Run YOLO on the image
         results = model(pil_img)
-        print(results)  # Debugging line to check results
-        if not results or len(results) == 0:
-            raise HTTPException(500, "No results returned from the model")
-        result = results[0]
+        
+        result = results[0]  # We only sent 1 image, so use first result
 
-        # Build detections list
+        # Collect detections
         detections = []
-        for box in result.boxes or []:
+        for box in result.boxes:
             xyxy = box.xyxy[0].tolist()
             conf = float(box.conf[0])
             cls_id = int(box.cls[0])
-            # Use the model's own names mapping
-            cls_name = model.names.get(cls_id, "Unknown")
-            print(f"Detected: {cls_name} (ID: {cls_id}, Confidence: {conf})")  # Debug
+            cls_name = class_names.get(cls_id, "Unknown")  # Corrected: from model, not result
+
+            print(f"Detected: {cls_name} (ID: {cls_id}, Confidence: {conf})")
 
             detections.append({
                 "bbox": xyxy,
@@ -55,11 +54,11 @@ async def predict(image: UploadFile = File(...)):
                 "class_name": cls_name
             })
 
-        # Annotate the image with bounding boxes
+        # Draw boxes on the image
         annotated_bgr = result.plot()
         annotated_rgb = cv2.cvtColor(annotated_bgr, cv2.COLOR_BGR2RGB)
 
-        # Encode to base64
+        # Encode the annotated image as base64
         buf = io.BytesIO()
         Image.fromarray(annotated_rgb).save(buf, format="JPEG")
         img_b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
@@ -70,5 +69,4 @@ async def predict(image: UploadFile = File(...)):
         })
 
     except Exception as e:
-        # Better error handling
         raise HTTPException(500, f"Error processing image: {str(e)}")
