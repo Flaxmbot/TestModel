@@ -1,6 +1,9 @@
 fastapi
 uvicorn
-onnxruntime
 pillow
-opencv-python
 python-multipart
+gunicorn
+ultralytics
+requests
+opencv-python-headless
+gradio
