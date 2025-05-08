@@ -19,7 +19,7 @@ app.add_middleware(
 )
 
 # Load your YOLO model
-model = YOLO("best (6).pt")  # Make sure 'last.pt' is in the correct path
+model = YOLO("model.pt")  # Make sure 'last.pt' is in the correct path
 class_names = model.names  # Get class names from model
 
 @app.post("/predict")
