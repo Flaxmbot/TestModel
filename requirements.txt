@@ -2,8 +2,5 @@ fastapi
 uvicorn
 pillow
 python-multipart
-gunicorn
 ultralytics
-requests
 opencv-python-headless
-gradio
