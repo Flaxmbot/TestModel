@@ -23,10 +23,11 @@ export default function SpaceStationDetection() {
   const [isLoading, setIsLoading] = useState(false)
   const [isCameraActive, setIsCameraActive] = useState(false)
   const [isDarkMode, setIsDarkMode] = useState(false)
-  const [warningEnabled, setWarningEnabled] = useState(false)
+  const [warningEnabled, setWarningEnabled] = useState(true)
   const [missingItems, setMissingItems] = useState<string[]>([])
   const [showWarning, setShowWarning] = useState(false)
   const [confidenceScores, setConfidenceScores] = useState<{ [key: string]: number }>({})
+  const [dialogOpen, setDialogOpen] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -107,45 +108,103 @@ export default function SpaceStationDetection() {
     }
   }
 
-  // Check for missing items
-  const checkMissingItems = async (imageFile: File) => {
+  // // Check for missing items
+  // const checkMissingItems = async (imageFile: File) => {
+  //   if (!warningEnabled) return
+
+  //   try {
+  //     const formData = new FormData()
+  //     formData.append("image", imageFile)
+
+  //     const response = await fetch("http://127.0.0.1:8000/check-missing", {
+  //       method: "POST",
+  //       body: formData,
+  //     })
+
+  //     if (!response.ok) {
+  //       throw new Error(`Error: ${response.status} ${response.statusText}`)
+  //     }
+
+  //     const data = await response.json()
+
+  //     if (data.missing_classes && data.missing_classes.length > 0) {
+  //       // Convert class IDs to names
+  //       const classNames = {
+  //         0: "Fire Extinguisher",
+  //         1: "Toolbox",
+  //         2: "Oxygen Tank",
+  //       }
+
+  //       const missingNames = data.missing_classes.map(
+  //         (id: number) => classNames[id as keyof typeof classNames] || `Item ${id}`,
+  //       )
+  //       setMissingItems(missingNames)
+  //       setShowWarning(true)
+
+  //       // Voice alert
+  //       if ("speechSynthesis" in window) {
+  //         const message = new SpeechSynthesisUtterance(`Warning! Missing critical items: ${missingNames.join(", ")}`)
+  //         window.speechSynthesis.speak(message)
+  //       }
+
+  //       toast({
+  //         variant: "destructive",
+  //         title: "Missing Items Detected",
+  //         description: `Critical items missing: ${missingNames.join(", ")}`,
+  //       })
+  //     } else {
+  //       setMissingItems([])
+  //       setShowWarning(false)
+  //     }
+  //   } catch (err) {
+  //     console.error("Error checking missing items:", err)
+  //   }
+  // }
+
+  // Check for missing and detected items
+  const checkItems = async (imageFile: File) => {
     if (!warningEnabled) return
 
     try {
       const formData = new FormData()
       formData.append("image", imageFile)
 
-      const response = await fetch("https://testmodel-sw32.onrender.com/check-missing", {
+      // Check Missing Items
+      const missingResponse = await fetch("http://127.0.0.1:8000/check-missing", {
         method: "POST",
         body: formData,
       })
 
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status} ${response.statusText}`)
+      if (!missingResponse.ok) {
+        throw new Error(`Error: ${missingResponse.status} ${missingResponse.statusText}`)
       }
 
-      const data = await response.json()
+      const missingData = await missingResponse.json()
 
-      if (data.missing_classes && data.missing_classes.length > 0) {
-        // Convert class IDs to names
-        const classNames = {
-          0: "Fire Extinguisher",
-          1: "Toolbox",
-          2: "Oxygen Tank",
-        }
+      // Class ID to Name Mapping
+      const classNames: Record<number, string> = {
+        0: "Fire Extinguisher",
+        1: "Toolbox",
+        2: "Oxygen Tank",
+      }
 
-        const missingNames = data.missing_classes.map(
-          (id: number) => classNames[id as keyof typeof classNames] || `Item ${id}`,
-        )
+      // Process Missing Items
+      if (missingData.missing_classes && missingData.missing_classes.length > 0) {
+        const missingNames = missingData.missing_classes.map((id: number) => classNames[id] || `Item ${id}`)
+
         setMissingItems(missingNames)
-        setShowWarning(true)
+        setShowWarning(true) // This will trigger the popup
+        setDialogOpen(true) // This will open the dialog
 
-        // Voice alert
+        // Voice Alert for Missing Items
         if ("speechSynthesis" in window) {
-          const message = new SpeechSynthesisUtterance(`Warning! Missing critical items: ${missingNames.join(", ")}`)
-          window.speechSynthesis.speak(message)
+          const missingMessage = new SpeechSynthesisUtterance(
+            `Warning! Missing critical items: ${missingNames.join(", ")}`,
+          )
+          window.speechSynthesis.speak(missingMessage)
         }
 
+        // Toast Notification for Missing Items
         toast({
           variant: "destructive",
           title: "Missing Items Detected",
@@ -155,8 +214,40 @@ export default function SpaceStationDetection() {
         setMissingItems([])
         setShowWarning(false)
       }
+
+      // Check Detected Items
+      const detectedResponse = await fetch("http://127.0.0.1:8000/detected-items", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!detectedResponse.ok) {
+        throw new Error(`Error: ${detectedResponse.status} ${detectedResponse.statusText}`)
+      }
+
+      const detectedData = await detectedResponse.json()
+
+      // Process Detected Items
+      if (detectedData.detected_items && detectedData.detected_items.length > 0) {
+        const detectedNames = detectedData.detected_items.map(
+          (item: { class_id: number; class_name: string }) => classNames[item.class_id] || item.class_name,
+        )
+
+        // Voice Alert for Detected Items
+        if ("speechSynthesis" in window) {
+          const detectedMessage = new SpeechSynthesisUtterance(`Detected items: ${detectedNames.join(", ")}`)
+          window.speechSynthesis.speak(detectedMessage)
+        }
+
+        // Toast Notification for Detected Items
+        toast({
+          variant: "default",
+          title: "Items Detected",
+          description: `Detected items: ${detectedNames.join(", ")}`,
+        })
+      }
     } catch (err) {
-      console.error("Error checking missing items:", err)
+      console.error("Error checking items:", err)
     }
   }
 
@@ -179,10 +270,12 @@ export default function SpaceStationDetection() {
       const formData = new FormData()
       formData.append("image", imageFile)
 
-      const response = await fetch("https://testmodel-sw32.onrender.com/predict", {
+      const response = await fetch("http://127.0.0.1:8000/predict", {
         method: "POST",
         body: formData,
       })
+      console.log("this is our response ", response)
+      console.log("this is our form data ", response.formData)
 
       if (!response.ok) {
         throw new Error(`Error: ${response.status} ${response.statusText}`)
@@ -213,7 +306,7 @@ export default function SpaceStationDetection() {
 
         // Check for missing items if warning is enabled
         if (warningEnabled) {
-          await checkMissingItems(imageFile)
+          await checkItems(imageFile)
         }
       } else {
         throw new Error("No image data received from the API")
@@ -242,7 +335,7 @@ export default function SpaceStationDetection() {
     if (!warningEnabled) {
       // If we're enabling warnings and already have a result, check for missing items
       if (selectedImage && resultImage) {
-        checkMissingItems(selectedImage)
+        checkItems(selectedImage)
       }
     } else {
       // If we're disabling warnings, clear any existing warnings
@@ -296,12 +389,36 @@ export default function SpaceStationDetection() {
                 <AlertTitle>Missing Critical Items</AlertTitle>
                 <AlertDescription>The following items are missing: {missingItems.join(", ")}</AlertDescription>
               </div>
-              <Button variant="outline" size="sm" className="ml-auto" onClick={() => setShowWarning(false)}>
+              <Button variant="outline" size="sm" className="ml-auto" onClick={() => setDialogOpen(false)}>
                 Dismiss
               </Button>
             </Alert>
           </div>
         )}
+
+        {/* Missing Items Popup */}
+        <Dialog open={dialogOpen && warningEnabled} onOpenChange={(open) => setDialogOpen(open)}>
+          <DialogContent className="sm:max-w-md">
+            <div className="p-4 text-center">
+              <div className="bg-red-100 text-red-700 p-4 rounded-full inline-flex items-center justify-center mb-4">
+                <Bell className="h-8 w-8 animate-pulse" />
+              </div>
+              <h2 className="text-xl font-bold mb-2">Missing Critical Items</h2>
+              <p className="mb-4">The following items are required for safety:</p>
+              <ul className="space-y-2 mb-6">
+                {missingItems.map((item, index) => (
+                  <li key={index} className="flex items-center justify-center">
+                    <span className="mr-2">🚨</span>
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <Button onClick={() => setDialogOpen(false)} className="w-full">
+                Acknowledge
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Main Content */}
         <Tabs
@@ -394,7 +511,7 @@ export default function SpaceStationDetection() {
                 <CardHeader>
                   <CardTitle>Detection Results</CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-col items-center justify-center min-h-[300px]">
+                <CardContent className="flex flex-col items-center justify-center min-h-[300px] space-y-4">
                   {isLoading ? (
                     <div className="flex flex-col items-center justify-center space-y-4">
                       <Loader2 className="h-12 w-12 animate-spin text-primary" />
@@ -417,15 +534,22 @@ export default function SpaceStationDetection() {
 
                           {/* Confidence Scores Overlay */}
                           <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2 text-sm">
-                            {Object.entries(confidenceScores).map(([label, score]) => (
-                              <div key={label} className="flex items-center justify-between mb-1 last:mb-0">
-                                <span>{label}</span>
-                                <div className="flex items-center space-x-2">
-                                  <Progress value={score} className="w-24 h-2" />
-                                  <span>{Math.round(score)}%</span>
-                                </div>
-                              </div>
-                            ))}
+                            {Object.entries(confidenceScores).length > 0 ? (
+                              <>
+                                <h2 className="font-semibold mb-1">Detected Items:</h2>
+                                {Object.entries(confidenceScores).map(([label, score]) => (
+                                  <div key={label} className="flex items-center justify-between mb-1 last:mb-0">
+                                    <span>{label}</span>
+                                    <div className="flex items-center space-x-2">
+                                      <Progress value={score} className="w-24 h-2" />
+                                      <span>{Math.round(score)}%</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
+                            ) : (
+                              <p>No items detected.</p>
+                            )}
                           </div>
                         </div>
                       </DialogTrigger>
@@ -443,6 +567,44 @@ export default function SpaceStationDetection() {
                   ) : (
                     <div className="text-center text-gray-500">
                       <p>Upload and process an image to see detection results</p>
+                    </div>
+                  )}
+
+                  {/* Detected and Missing Items Section */}
+                  {Object.entries(confidenceScores).length > 0 && (
+                    <div className="w-full p-4 border border-green-500 bg-green-100 rounded-lg text-green-700">
+                      <h3 className="font-semibold mb-2 flex items-center">
+                        <Bell className="h-4 w-4 mr-2" />
+                        Detected Items
+                      </h3>
+                      <ul className="space-y-1">
+                        {Object.entries(confidenceScores).map(([label, score]) => (
+                          <li key={label} className="flex items-center justify-between">
+                            <span>{label}</span>
+                            <span className="font-medium">{Math.round(score)}%</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {warningEnabled && showWarning && missingItems.length > 0 && (
+                    <div className="w-full p-4 border border-red-500 bg-red-100 rounded-lg text-red-700">
+                      <h3 className="font-semibold mb-2 flex items-center">
+                        <Bell className="h-4 w-4 mr-2" />
+                        Missing Critical Items
+                      </h3>
+                      <ul className="space-y-1">
+                        {missingItems.map((item, index) => (
+                          <li key={index} className="flex items-center">
+                            <span className="mr-2">🚨</span>
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                      <Button variant="outline" size="sm" className="mt-2" onClick={() => setShowWarning(false)}>
+                        Dismiss
+                      </Button>
                     </div>
                   )}
                 </CardContent>
@@ -516,15 +678,22 @@ export default function SpaceStationDetection() {
 
                           {/* Confidence Scores Overlay */}
                           <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2 text-sm">
-                            {Object.entries(confidenceScores).map(([label, score]) => (
-                              <div key={label} className="flex items-center justify-between mb-1 last:mb-0">
-                                <span>{label}</span>
-                                <div className="flex items-center space-x-2">
-                                  <Progress value={score} className="w-24 h-2" />
-                                  <span>{Math.round(score)}%</span>
-                                </div>
-                              </div>
-                            ))}
+                            {Object.entries(confidenceScores).length > 0 ? (
+                              <>
+                                <h2 className="font-semibold mb-1">Detected Items:</h2>
+                                {Object.entries(confidenceScores).map(([label, score]) => (
+                                  <div key={label} className="flex items-center justify-between mb-1 last:mb-0">
+                                    <span>{label}</span>
+                                    <div className="flex items-center space-x-2">
+                                      <Progress value={score} className="w-24 h-2" />
+                                      <span>{Math.round(score)}%</span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </>
+                            ) : (
+                              <p>No items detected.</p>
+                            )}
                           </div>
                         </div>
                       </DialogTrigger>
