@@ -170,7 +170,7 @@ export default function SpaceStationDetection() {
       formData.append("image", imageFile)
 
       // Check Missing Items
-      const missingResponse = await fetch("http://127.0.0.1:8000/check-missing", {
+      const missingResponse = await fetch("https://testmodel-sw32.onrender.com/check-missing", {
         method: "POST",
         body: formData,
       })
@@ -216,7 +216,7 @@ export default function SpaceStationDetection() {
       }
 
       // Check Detected Items
-      const detectedResponse = await fetch("http://127.0.0.1:8000/detected-items", {
+      const detectedResponse = await fetch("https://testmodel-sw32.onrender.com/detected-items", {
         method: "POST",
         body: formData,
       })
@@ -270,7 +270,7 @@ export default function SpaceStationDetection() {
       const formData = new FormData()
       formData.append("image", imageFile)
 
-      const response = await fetch("http://127.0.0.1:8000/predict", {
+      const response = await fetch("https://testmodel-sw32.onrender.com/predict", {
         method: "POST",
         body: formData,
       })
