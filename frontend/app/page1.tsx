@@ -11,9 +11,9 @@ import { useDropzone } from "react-dropzone"
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
 import { Switch } from "@/components/ui/switch"
-import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 import { useMobile } from "@/hooks/use-mobile"
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 
 export default function SpaceStationDetection() {
   const [mode, setMode] = useState<"upload" | "webcam">("upload")
@@ -39,8 +39,6 @@ export default function SpaceStationDetection() {
       const file = acceptedFiles[0]
       setSelectedImage(file)
       setResultImage(null)
-      setMissingItems([])
-      setShowWarning(false)
 
       // Create preview URL
       const objectUrl = URL.createObjectURL(file)
@@ -107,59 +105,6 @@ export default function SpaceStationDetection() {
     }
   }
 
-  // Check for missing items
-  const checkMissingItems = async (imageFile: File) => {
-    if (!warningEnabled) return
-
-    try {
-      const formData = new FormData()
-      formData.append("image", imageFile)
-
-      const response = await fetch("http://127.0.0.1:8000/check-missing", {
-        method: "POST",
-        body: formData,
-      })
-
-      if (!response.ok) {
-        throw new Error(`Error: ${response.status} ${response.statusText}`)
-      }
-
-      const data = await response.json()
-
-      if (data.missing_classes && data.missing_classes.length > 0) {
-        // Convert class IDs to names
-        const classNames = {
-          0: "Fire Extinguisher",
-          1: "Toolbox",
-          2: "Oxygen Tank",
-        }
-
-        const missingNames = data.missing_classes.map(
-          (id: number) => classNames[id as keyof typeof classNames] || `Item ${id}`,
-        )
-        setMissingItems(missingNames)
-        setShowWarning(true)
-
-        // Voice alert
-        if ("speechSynthesis" in window) {
-          const message = new SpeechSynthesisUtterance(`Warning! Missing critical items: ${missingNames.join(", ")}`)
-          window.speechSynthesis.speak(message)
-        }
-
-        toast({
-          variant: "destructive",
-          title: "Missing Items Detected",
-          description: `Critical items missing: ${missingNames.join(", ")}`,
-        })
-      } else {
-        setMissingItems([])
-        setShowWarning(false)
-      }
-    } catch (err) {
-      console.error("Error checking missing items:", err)
-    }
-  }
-
   // Handle object detection
   const detectObjects = async (imageFile: File = selectedImage!) => {
     if (!imageFile) {
@@ -172,8 +117,6 @@ export default function SpaceStationDetection() {
     }
 
     setIsLoading(true)
-    setMissingItems([])
-    setShowWarning(false)
 
     try {
       const formData = new FormData()
@@ -193,28 +136,26 @@ export default function SpaceStationDetection() {
       if (data.image) {
         setResultImage(`data:image/jpeg;base64,${data.image}`)
 
-        // Use real scores from API
-        if (Array.isArray(data.detections) && data.detections.length > 0) {
-          const scores: Record<string, number> = {}
-          data.detections.forEach((det: any) => {
-            // det.class_name and det.confidence come from your FastAPI
-            scores[det.class_name] = det.confidence * 100
-          })
-          setConfidenceScores(scores)
-        } else {
-          // no detections → clear out any old scores
-          setConfidenceScores({})
-        }
+        // **Replace mock with real scores:**
+  if (Array.isArray(data.detections) && data.detections.length > 0) {
+    const scores: Record<string, number> = {}
+    data.detections.forEach((det: any) => {
+      // det.class_name and det.confidence come from your FastAPI
+      scores[det.class_name] = det.confidence * 100
+    })
+    setConfidenceScores(scores)
+  } else {
+    // no detections → clear out any old scores
+    setConfidenceScores({})
+  }
 
-        toast({
-          title: "Detection Complete",
-          description: "Objects have been successfully detected.",
-        })
+  toast({
+    title: "Detection Complete",
+    description: "Objects have been successfully detected.",
+  })
 
-        // Check for missing items if warning is enabled
-        if (warningEnabled) {
-          await checkMissingItems(imageFile)
-        }
+        // Check for missing items after successful detection
+        await checkMissingItems()
       } else {
         throw new Error("No image data received from the API")
       }
@@ -240,19 +181,56 @@ export default function SpaceStationDetection() {
   const toggleWarningMode = () => {
     setWarningEnabled(!warningEnabled)
     if (!warningEnabled) {
-      // If we're enabling warnings and already have a result, check for missing items
-      if (selectedImage && resultImage) {
-        checkMissingItems(selectedImage)
-      }
-    } else {
-      // If we're disabling warnings, clear any existing warnings
+      // Reset warnings when enabling
       setMissingItems([])
       setShowWarning(false)
+    }
+  }
 
-      // Stop any ongoing speech
-      if ("speechSynthesis" in window) {
-        window.speechSynthesis.cancel()
+  // Check for missing items
+  const checkMissingItems = async () => {
+    if (!warningEnabled || !resultImage) return
+
+    try {
+      const formData = new FormData()
+      if (selectedImage) {
+        formData.append("image", selectedImage)
       }
+
+      const response = await fetch("http://127.0.0.1:8000/check-missing", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+
+      if (data.missing_items && data.missing_items.length > 0) {
+        setMissingItems(data.missing_items)
+        setShowWarning(true)
+
+        // Voice alert
+        if (warningEnabled && "speechSynthesis" in window) {
+          const message = new SpeechSynthesisUtterance(
+            `Warning! Missing critical items: ${data.missing_items.join(", ")}`,
+          )
+          window.speechSynthesis.speak(message)
+        }
+
+        toast({
+          variant: "destructive",
+          title: "Missing Items Detected",
+          description: `Critical items missing: ${data.missing_items.join(", ")}`,
+        })
+      } else {
+        setMissingItems([])
+        setShowWarning(false)
+      }
+    } catch (err) {
+      console.error("Error checking missing items:", err)
     }
   }
 
