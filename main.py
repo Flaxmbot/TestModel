@@ -40,19 +40,24 @@ async def predict(image: UploadFile = File(...)):
         result = results[0]  # We only sent 1 image, so use first result
 
         # Collect detections
-        detections = []
+        detections = {}
         for box in result.boxes:
             xyxy = box.xyxy[0].tolist()
             conf = float(box.conf[0])
             cls_id = int(box.cls[0])
             cls_name = class_names.get(cls_id, "Unknown")
 
-            detections.append({
-                "bbox": xyxy,
-                "confidence": conf,
-                "class_id": cls_id,
-                "class_name": cls_name
-            })
+            # Only keep the box with the highest confidence for each class
+            if cls_id not in detections or conf > detections[cls_id]["confidence"]:
+                detections[cls_id] = {
+                    "bbox": xyxy,
+                    "confidence": conf,
+                    "class_id": cls_id,
+                    "class_name": cls_name
+                }
+
+        # Convert to a list of detections
+        detections = list(detections.values())
 
         # Draw boxes on the image
         annotated_bgr = result.plot()
