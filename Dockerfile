@@ -33,7 +33,7 @@
   WORKDIR /app
   
   # Copy backend code
-  COPY main.py best.pt ./
+  COPY main.py model.pt ./
   
   # Copy built frontend and node modules
   COPY --from=frontend /app/frontend/.next ./frontend/.next
