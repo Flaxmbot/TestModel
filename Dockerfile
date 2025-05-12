@@ -4,7 +4,7 @@ FROM node:18-slim AS base
 WORKDIR /app
 
 # Install system-level dependencies for both Node.js and Python
-RUN apt-get update && apt-get install -y ffmpeg && \
+RUN apt-get update && apt-get install -y ffmpeg python3 python3-pip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # -------- Backend Setup --------
@@ -14,7 +14,7 @@ WORKDIR /app
 
 # Install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # -------- Frontend Build --------
 FROM base AS frontend
@@ -42,4 +42,4 @@ COPY --from=frontend /app/frontend/ ./frontend/
 EXPOSE 8000
 
 # Start the FastAPI server
-CMD ["python", "run_app.py"]
+CMD ["python3", "run_app.py"]
